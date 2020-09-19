@@ -7,6 +7,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.ext.jdbc.JDBCClient;
 import io.vertx.ext.sql.ResultSet;
 import io.vertx.ext.sql.SQLClient;
+import io.vertx.ext.sql.UpdateResult;
 
 public class DBConnector {
 
@@ -26,18 +27,14 @@ public class DBConnector {
     return query(query, new JsonArray());
   }
 
-
   public Future<ResultSet> query(String query, JsonArray params) {
     if(query == null || query.isEmpty()) {
       return Future.failedFuture("Query is null or empty");
     }
-    if(!query.endsWith(";")) {
-      query = query + ";";
-    }
-
+    String sanitizedQuery = sanitizeQuery(query);
     Future<ResultSet> queryResultFuture = Future.future();
 
-    client.queryWithParams(query, params, result -> {
+    client.queryWithParams(sanitizedQuery, params, result -> {
       if(result.failed()){
         queryResultFuture.fail(result.cause());
       } else {
@@ -47,5 +44,30 @@ public class DBConnector {
     return queryResultFuture;
   }
 
+  public Future<UpdateResult> update(String query) {
+    return update(query, new JsonArray());
+  }
 
+  public Future<UpdateResult> update(String query, JsonArray params) {
+    if(query == null || query.isEmpty()) {
+      return Future.failedFuture("Query is null or empty");
+    }
+    String sanitizedQuery = sanitizeQuery(query);
+    Future<UpdateResult> updateResultFuture = Future.future();
+
+    client.updateWithParams(sanitizedQuery, params, result -> {
+      if(result.failed()){
+        updateResultFuture.fail(result.cause());
+      } else {
+        updateResultFuture.complete(result.result());
+      }
+    });
+    return updateResultFuture;
+  }
+
+  private String sanitizeQuery(String query) {
+    return !query.endsWith(";")
+      ? query + ";"
+      : query;
+  }
 }
