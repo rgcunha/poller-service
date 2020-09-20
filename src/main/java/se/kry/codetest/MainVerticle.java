@@ -2,6 +2,8 @@ package se.kry.codetest;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
+import io.vertx.core.eventbus.EventBus;
+import io.vertx.core.eventbus.MessageConsumer;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -26,6 +28,18 @@ public class MainVerticle extends AbstractVerticle {
     connector = new DBConnector(vertx);
     poller = new BackgroundPoller(vertx);
     Router router = Router.router(vertx);
+    EventBus eb = vertx.eventBus();
+
+    // setup event bus
+    MessageConsumer<String> consumer = eb.consumer("STATUS_UPDATED");
+    consumer.handler(message -> {
+      JsonObject json = new JsonObject(message.body());
+      Integer id = json.getInteger("id");
+      String status = json.getString("status");
+      String updateQuery = "UPDATE service SET status = ? WHERE id = ?;";
+      JsonArray params = new JsonArray().add(status).add(id);
+      connector.update(updateQuery, params);
+    });
 
     // setup poller
     vertx.setPeriodic(1000 * 10, timerId -> {
@@ -61,6 +75,10 @@ public class MainVerticle extends AbstractVerticle {
 
   private void setRoutes(Router router){
     router.route("/*").handler(StaticHandler.create());
+    router.get("/health").handler(req -> {
+      sendInternalError(req);
+    });
+
     router.get("/service").handler(req -> {
       String query = "SELECT * from service";
 
@@ -69,11 +87,11 @@ public class MainVerticle extends AbstractVerticle {
           if (asyncResult.succeeded()) {
             JsonArray arr = new JsonArray();
             asyncResult.result().getRows().forEach(arr::add);
-              sendSuccessResponse(req, arr.encode());
-            } else {
-              sendInternalError(req);
-            }
-          });
+            sendSuccessResponse(req, arr.encode());
+          } else {
+            sendInternalError(req);
+          }
+        });
     });
 
     router.post("/service").handler(req -> {
@@ -90,7 +108,6 @@ public class MainVerticle extends AbstractVerticle {
         sendValidationError(req, "url");
         return;
       }
-
 
       JsonArray params = new JsonArray().add(name).add(url).add("UNKNOWN");
       String query = "INSERT INTO service (name, url, status) VALUES(?, ?, ?);";
