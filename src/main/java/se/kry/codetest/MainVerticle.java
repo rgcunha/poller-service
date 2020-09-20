@@ -49,16 +49,10 @@ public class MainVerticle extends AbstractVerticle {
       queryResultFuture.setHandler(asyncResult -> {
           if (asyncResult.succeeded()) {
             JsonArray arr = new JsonArray();
-            asyncResult.result().getRows().forEach(service -> {
-              JsonObject jsonService = new JsonObject()
-                .put("id", service.getInteger("id"))
-                .put("name", service.getString("url"))
-                .put("status", service.getString("status"));
-              arr.add(jsonService);
-            });
+            asyncResult.result().getRows().forEach(arr::add);
               sendSuccessResponse(req, arr.encode());
             } else {
-              sendErrorResponse(req);
+              sendInternalError(req);
             }
           });
     });
@@ -66,30 +60,52 @@ public class MainVerticle extends AbstractVerticle {
     router.post("/service").handler(req -> {
       JsonObject jsonBody = req.getBodyAsJson();
       String url = jsonBody.getString("url");
-      JsonArray params = new JsonArray().add(url).add("UNKNOWN");
-      String query = "INSERT INTO service (url, status) VALUES(?, ?);";
+      String name = jsonBody.getString("name");
+
+      if(name == null || name.isEmpty()) {
+        sendValidationError(req, "name");
+        return;
+      }
+
+      if(url == null || url.isEmpty()) {
+        sendValidationError(req, "url");
+        return;
+      }
+
+      JsonArray params = new JsonArray().add(name).add(url).add("UNKNOWN");
+      String query = "INSERT INTO service (name, url, status) VALUES(?, ?, ?);";
 
       Future<UpdateResult> updateResultFuture = connector.update(query, params);
       updateResultFuture.setHandler(asyncResult -> {
         if (asyncResult.succeeded()) {
           sendSuccessResponse(req);
         } else {
-          sendErrorResponse(req);
+          sendInternalError(req);
         }
       });
     });
 
     router.delete("/service/:id").handler(req -> {
       String id = req.request().getParam("id");
+
+      if(id == null || id.isEmpty()) {
+        sendValidationError(req, "id");
+        return;
+      }
+
       JsonArray params = new JsonArray().add(id);
       String query = "DELETE FROM service WHERE id = ?;";
 
       Future<UpdateResult> updateResultFuture = connector.update(query, params);
       updateResultFuture.setHandler(asyncResult -> {
         if (asyncResult.succeeded()) {
-          sendSuccessResponse(req);
+          if (asyncResult.result().getUpdated() == 0) {
+            sendNotFoundError(req);
+          } else {
+            sendSuccessResponse(req);
+          }
         } else {
-          sendErrorResponse(req);
+          sendInternalError(req);
         }
       });
     });
@@ -103,8 +119,16 @@ public class MainVerticle extends AbstractVerticle {
     return req.response().putHeader("content-type", "application/json");
   }
 
-  private void sendErrorResponse(RoutingContext req) {
-    createPlainTextResponse(req).end("FAILED");
+  private void sendInternalError(RoutingContext req) {
+    createPlainTextResponse(req).setStatusCode(500).end("FAILED");
+  }
+
+  private void sendValidationError(RoutingContext req, String paramName) {
+    createPlainTextResponse(req).setStatusCode(400).end("Invalid or missing parameter: " + paramName);
+  }
+
+  private void sendNotFoundError(RoutingContext req) {
+    createPlainTextResponse(req).setStatusCode(404).end("Service not found");
   }
 
   private void sendSuccessResponse(RoutingContext req) {
