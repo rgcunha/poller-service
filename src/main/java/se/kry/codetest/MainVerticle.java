@@ -12,20 +12,39 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.StaticHandler;
 
+import java.net.URL;
 import java.util.HashMap;
 
 public class MainVerticle extends AbstractVerticle {
-
-  private HashMap<String, String> services = new HashMap<>();
   private DBConnector connector;
-  private BackgroundPoller poller = new BackgroundPoller(vertx);
+  private BackgroundPoller poller;
+  private HashMap<Integer, String> services = new HashMap<>();
+
 
   @Override
   public void start(Future<Void> startFuture) {
     connector = new DBConnector(vertx);
+    poller = new BackgroundPoller(vertx);
     Router router = Router.router(vertx);
+
+    // setup poller
+    vertx.setPeriodic(1000 * 10, timerId -> {
+      String query = "SELECT id, url from service";
+      Future<ResultSet> queryResultFuture = connector.query(query);
+
+      queryResultFuture.setHandler(asyncResult -> {
+          if (asyncResult.succeeded()) {
+            services.clear();
+            asyncResult.result().getRows().forEach(result -> {
+              services.put(result.getInteger("id"), result.getString("url"));
+            });
+            poller.pollServices(services);
+          }
+        });
+    });
+
+    // setup http server
     router.route().handler(BodyHandler.create());
-    vertx.setPeriodic(1000 * 60, timerId -> poller.pollServices(services));
     setRoutes(router);
     vertx
         .createHttpServer()
@@ -67,10 +86,11 @@ public class MainVerticle extends AbstractVerticle {
         return;
       }
 
-      if(url == null || url.isEmpty()) {
+      if(!isValidUrl(url)) {
         sendValidationError(req, "url");
         return;
       }
+
 
       JsonArray params = new JsonArray().add(name).add(url).add("UNKNOWN");
       String query = "INSERT INTO service (name, url, status) VALUES(?, ?, ?);";
@@ -109,6 +129,15 @@ public class MainVerticle extends AbstractVerticle {
         }
       });
     });
+  }
+
+  private boolean isValidUrl(String url) {
+    try {
+      new URL(url).toURI();
+    } catch(Exception e) {
+      return false;
+    }
+    return true;
   }
 
   private HttpServerResponse createPlainTextResponse(RoutingContext req) {
