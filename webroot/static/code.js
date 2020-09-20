@@ -1,29 +1,34 @@
 const listContainer = document.querySelector('#service-list');
 const servicesRequest = new Request('/service');
-fetch(servicesRequest)
-  .then(response => response.json())
-  .then((serviceList) => {
-    serviceList.forEach(service => {
-      const li = document.createElement("li");
-      li.setAttribute("id", service.id);
 
-      const deleteBtn = document.createElement("input");
-      deleteBtn.setAttribute("value", "Delete");
-      deleteBtn.setAttribute("type", "button");
-      deleteBtn.onclick = onDelete;
+function createList() {
+  fetch(servicesRequest)
+    .then(response => response.json())
+    .then((serviceList) => {
+      serviceList.forEach(service => {
+        const li = document.createElement("li");
+        li.setAttribute("id", service.id);
 
-      const statusIcon = document.createElement("span");
-      statusIcon.setAttribute("class", "fa fa-check status");
+        const deleteBtn = document.createElement("input");
+        deleteBtn.setAttribute("value", "Delete");
+        deleteBtn.setAttribute("type", "button");
+        deleteBtn.onclick = onDelete;
 
-      li.appendChild(document.createTextNode(service.name + ': ' + service.status));
-      li.appendChild(statusIcon);
-      li.appendChild(deleteBtn);
-      listContainer.appendChild(li);
+        const statusIcon = document.createElement("span");
+        statusIcon.setAttribute("class", "fa fa-check status");
+
+        li.appendChild(document.createTextNode(service.name + ': ' + service.status));
+        li.appendChild(statusIcon);
+        li.appendChild(deleteBtn);
+        listContainer.appendChild(li);
+      });
     });
-  });
+  };
 
-const saveButton = document.querySelector('#post-service');
-saveButton.onclick = onSave;
+function refreshList() {
+  document.querySelector("ul").innerHTML = "";
+  createList();
+}
 
 function onDelete(evt) {
   const id = evt.target.parentElement.id;
@@ -62,3 +67,14 @@ function sendRequest({ method, path, body }) {
 function setError(text) {
   document.getElementById('error').innerHTML = text;
 }
+
+function main() {
+  const POLLING_INTERVAL_MS = 1000 * 5;
+  createList()
+  setInterval(() => refreshList(), POLLING_INTERVAL_MS);
+  
+  const saveButton = document.querySelector('#post-service');
+  saveButton.onclick = onSave;
+}
+
+main();
