@@ -37,11 +37,19 @@ span#error {
 }
 
 span.status {
-  color: white;
-  background-color: green;
-  border-radius: 50%;
-  padding: 2px;
-  margin-left: 6px;
+  margin-right: 6px;
+}
+
+.status.ok {
+  color: #4CAF50;
+}
+
+.status.fail {
+  color: red;
+}
+
+.status.unknown {
+  color: orange;
 }
 
 ul {

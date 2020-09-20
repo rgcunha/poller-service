@@ -6,27 +6,41 @@ function createList() {
     .then(response => response.json())
     .then((serviceList) => {
       serviceList.forEach(service => {
-        const li = document.createElement("li");
-        li.setAttribute("id", service.id);
-
-        const deleteBtn = document.createElement("input");
-        deleteBtn.setAttribute("value", "Delete");
-        deleteBtn.setAttribute("type", "button");
-        deleteBtn.onclick = onDelete;
-
-        const statusIcon = document.createElement("span");
-        statusIcon.setAttribute("class", "fa fa-check status");
-
-        li.appendChild(document.createTextNode(service.name + ': ' + service.status));
-        li.appendChild(statusIcon);
-        li.appendChild(deleteBtn);
+        const li = createListItem(service);
         listContainer.appendChild(li);
       });
     });
   };
 
+function createListItem(service) {
+  const li = document.createElement("li");
+  li.setAttribute("id", service.id);
+
+  const deleteBtn = createDeleteBtn();
+  const statusIcon = createStatusIcon(service.status);
+
+  li.appendChild(statusIcon);
+  li.appendChild(document.createTextNode(`${service.name}: ${service.status.toLowerCase()}`));
+  li.appendChild(deleteBtn);
+  return li;
+}
+
+function createDeleteBtn() {
+  const deleteBtn = document.createElement("input");
+  deleteBtn.setAttribute("value", "Delete");
+  deleteBtn.setAttribute("type", "button");
+  deleteBtn.onclick = onDelete;
+  return deleteBtn;
+}
+
+function createStatusIcon(status) {
+  const statusIcon = document.createElement("span");
+  statusIcon.setAttribute("class", `fa fa-circle status ${status.toLowerCase()}`);
+  return statusIcon;
+}
+
 function refreshList() {
-  document.querySelector("ul").innerHTML = "";
+  listContainer.innerHTML = "";
   createList();
 }
 
