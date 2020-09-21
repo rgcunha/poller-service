@@ -7,26 +7,20 @@ import io.vertx.core.eventbus.MessageConsumer;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.ext.sql.ResultSet;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.StaticHandler;
 
 import java.net.URL;
-import java.util.HashMap;
 import java.util.List;
 
 public class MainVerticle extends AbstractVerticle {
-  private DBConnector connector;
   private BackgroundPoller poller;
-  private HashMap<Integer, String> services = new HashMap<>();
   private ServiceRepository repository;
-
 
   @Override
   public void start(Future<Void> startFuture) {
-    connector = new DBConnector(vertx);
     poller = new BackgroundPoller(vertx);
     Router router = Router.router(vertx);
     EventBus eb = vertx.eventBus();
@@ -43,15 +37,10 @@ public class MainVerticle extends AbstractVerticle {
 
     // setup poller
     vertx.setPeriodic(1000 * 10, timerId -> {
-      String query = "SELECT id, url from service";
-      Future<ResultSet> queryResultFuture = connector.query(query);
-      queryResultFuture.setHandler(asyncResult -> {
-          if (asyncResult.succeeded()) {
-            services.clear();
-            asyncResult.result().getRows().forEach(result -> {
-              services.put(result.getInteger("id"), result.getString("url"));
-            });
-            poller.pollServices(services);
+      Future<List<Service>> future = repository.getServices();
+      future.setHandler(ar -> {
+          if (ar.succeeded()) {
+            poller.pollServices(ar.result());
           }
         });
     });

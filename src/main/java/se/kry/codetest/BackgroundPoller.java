@@ -6,9 +6,8 @@ import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.client.WebClient;
 
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.HashMap;
+import java.util.List;
 
 enum Status {
   OK, FAIL, UNKNOWN;
@@ -23,14 +22,7 @@ public class BackgroundPoller {
     eb = vertx.eventBus();
   }
 
-  private Future<Status> poll(String requestUrl) {
-    URL url;
-    try {
-      url = new URL(requestUrl);
-    } catch(MalformedURLException e) {
-      return Future.failedFuture(e);
-    }
-
+  private Future<Status> poll(URL url) {
     Future<Status> serviceStatusFuture = Future.future();
 
     webClient
@@ -39,7 +31,7 @@ public class BackgroundPoller {
       .send(asyncResult -> {
         if (asyncResult.succeeded()) {
           Integer statusCode = asyncResult.result().statusCode();
-          String result = String.format("Status: %s | %s", requestUrl, statusCode);
+          String result = String.format("Status: %s | %s", url.toString(), statusCode);
           System.out.println(result);
           if (statusCode == 200) {
             serviceStatusFuture.complete(Status.OK);
@@ -47,7 +39,7 @@ public class BackgroundPoller {
             serviceStatusFuture.complete(Status.FAIL);
           }
         } else {
-          String result = String.format("Status: %s | %s", requestUrl, asyncResult.cause().getMessage());
+          String result = String.format("Status: %s | %s", url.toString(), asyncResult.cause().getMessage());
           System.out.println(result);
           serviceStatusFuture.complete(Status.UNKNOWN);
         }
@@ -56,14 +48,14 @@ public class BackgroundPoller {
     return serviceStatusFuture;
   }
 
-  public void pollServices(HashMap<Integer, String> services) {
+  public void pollServices(List<Service> services) {
     System.out.println("Polling...");
 
-    services.forEach((id, url) -> {
-      this.poll(url).setHandler(ar -> {
+    services.forEach(service -> {
+      this.poll(service.getUrl()).setHandler(ar -> {
         if (ar.succeeded()) {
           JsonObject event = new JsonObject();
-          event.put("id", id);
+          event.put("id", service.getId());
           event.put("status", ar.result().toString());
           eb.publish("STATUS_UPDATED", event.toString());
         }
