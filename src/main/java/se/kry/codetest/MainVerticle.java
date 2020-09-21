@@ -8,7 +8,6 @@ import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.sql.ResultSet;
-import io.vertx.ext.sql.UpdateResult;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
@@ -16,11 +15,13 @@ import io.vertx.ext.web.handler.StaticHandler;
 
 import java.net.URL;
 import java.util.HashMap;
+import java.util.List;
 
 public class MainVerticle extends AbstractVerticle {
   private DBConnector connector;
   private BackgroundPoller poller;
   private HashMap<Integer, String> services = new HashMap<>();
+  private ServiceRepository repository;
 
 
   @Override
@@ -29,6 +30,7 @@ public class MainVerticle extends AbstractVerticle {
     poller = new BackgroundPoller(vertx);
     Router router = Router.router(vertx);
     EventBus eb = vertx.eventBus();
+    repository = new ServiceRepository(vertx);
 
     // setup event bus
     MessageConsumer<String> consumer = eb.consumer("STATUS_UPDATED");
@@ -36,16 +38,13 @@ public class MainVerticle extends AbstractVerticle {
       JsonObject json = new JsonObject(message.body());
       Integer id = json.getInteger("id");
       String status = json.getString("status");
-      String updateQuery = "UPDATE service SET status = ? WHERE id = ?;";
-      JsonArray params = new JsonArray().add(status).add(id);
-      connector.update(updateQuery, params);
+      repository.updateService(id, status);
     });
 
     // setup poller
     vertx.setPeriodic(1000 * 10, timerId -> {
       String query = "SELECT id, url from service";
       Future<ResultSet> queryResultFuture = connector.query(query);
-
       queryResultFuture.setHandler(asyncResult -> {
           if (asyncResult.succeeded()) {
             services.clear();
@@ -73,20 +72,17 @@ public class MainVerticle extends AbstractVerticle {
         });
   }
 
-  private void setRoutes(Router router){
+  private void setRoutes(Router router) {
     router.route("/*").handler(StaticHandler.create());
     router.get("/health").handler(req -> {
       sendInternalError(req);
     });
 
     router.get("/service").handler(req -> {
-      String query = "SELECT * from service";
-
-      Future<ResultSet> queryResultFuture = connector.query(query);
-      queryResultFuture.setHandler(asyncResult -> {
-          if (asyncResult.succeeded()) {
-            JsonArray arr = new JsonArray();
-            asyncResult.result().getRows().forEach(arr::add);
+      Future<List<Service>> future = repository.getServices();
+      future.setHandler(ar -> {
+          if (ar.succeeded()) {
+            JsonArray arr = new JsonArray(ar.result());
             sendSuccessResponse(req, arr.encode());
           } else {
             sendInternalError(req);
@@ -109,12 +105,9 @@ public class MainVerticle extends AbstractVerticle {
         return;
       }
 
-      JsonArray params = new JsonArray().add(name).add(url).add("UNKNOWN");
-      String query = "INSERT INTO service (name, url, status) VALUES(?, ?, ?);";
-
-      Future<UpdateResult> updateResultFuture = connector.update(query, params);
-      updateResultFuture.setHandler(asyncResult -> {
-        if (asyncResult.succeeded()) {
+      Future<Void> future = repository.createService(name, url);
+      future.setHandler(ar -> {
+        if (ar.succeeded()) {
           sendSuccessResponse(req);
         } else {
           sendInternalError(req);
@@ -125,33 +118,38 @@ public class MainVerticle extends AbstractVerticle {
     router.delete("/service/:id").handler(req -> {
       String id = req.request().getParam("id");
 
-      if(id == null || id.isEmpty()) {
+      if(!isNumeric(id)) {
         sendValidationError(req, "id");
         return;
       }
 
-      JsonArray params = new JsonArray().add(id);
-      String query = "DELETE FROM service WHERE id = ?;";
-
-      Future<UpdateResult> updateResultFuture = connector.update(query, params);
-      updateResultFuture.setHandler(asyncResult -> {
-        if (asyncResult.succeeded()) {
-          if (asyncResult.result().getUpdated() == 0) {
-            sendNotFoundError(req);
-          } else {
-            sendSuccessResponse(req);
-          }
+      Future<Void> future = repository.deleteService(Integer.parseInt(id));
+      future.setHandler(ar -> {
+        if (ar.succeeded()) {
+          sendSuccessResponse(req);
         } else {
-          sendInternalError(req);
+          sendNotFoundError(req);
         }
       });
     });
   }
 
-  private boolean isValidUrl(String url) {
+  private static boolean isValidUrl(String url) {
     try {
       new URL(url).toURI();
     } catch(Exception e) {
+      return false;
+    }
+    return true;
+  }
+
+  private static boolean isNumeric(String str) {
+    if (str == null) {
+      return false;
+    }
+    try {
+      Integer.parseInt(str);
+    } catch (NumberFormatException e) {
       return false;
     }
     return true;
