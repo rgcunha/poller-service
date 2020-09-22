@@ -15,26 +15,40 @@ function createList() {
 function createListItem(service) {
   const li = document.createElement("li");
   li.setAttribute("id", service.id);
+  li.setAttribute("data-name", service.name);
+  li.setAttribute("data-url", service.url);
 
-  const deleteBtn = createDeleteBtn();
+  const anchor = createAnchor(service.url, service.name);
+  const deleteBtn = createBtn('Delete', onDelete);
   const statusIcon = createStatusIcon(service.status);
 
   li.appendChild(statusIcon);
-  li.appendChild(document.createTextNode(`${service.name}: ${service.status.toLowerCase()}`));
+  li.appendChild(anchor);
   li.appendChild(deleteBtn);
+
   return li;
 }
 
-function createDeleteBtn() {
-  const deleteBtn = document.createElement("input");
-  deleteBtn.setAttribute("value", "Delete");
-  deleteBtn.setAttribute("type", "button");
-  deleteBtn.onclick = onDelete;
-  return deleteBtn;
+function createBtn(value, onClick) {
+  const btn = document.createElement("input");
+  btn.setAttribute("value", value);
+  btn.setAttribute("type", "button");
+  btn.onclick = onClick;
+  return btn;
+}
+
+function createAnchor(href, text) {
+  const anchor = document.createElement("a");
+  const textNode = document.createTextNode(text);
+  anchor.setAttribute("href", href);
+  anchor.setAttribute("target", "_blank");
+  anchor.appendChild(textNode);
+  return anchor;
 }
 
 function createStatusIcon(status) {
   const statusIcon = document.createElement("span");
+  statusIcon.setAttribute("title", status);
   statusIcon.setAttribute("class", `fa fa-circle status ${status.toLowerCase()}`);
   return statusIcon;
 }
@@ -49,7 +63,7 @@ function onDelete(evt) {
 
   sendRequest({ method: 'delete', path: `/service/${id}` })
     .then((res) => {
-      if (res.ok) location.reload()
+      if (res.ok) refreshList();
     })
 }
 
