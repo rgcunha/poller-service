@@ -41,7 +41,7 @@ public class BackgroundPoller {
         } else {
           String result = String.format("Status: %s | %s", url.toString(), asyncResult.cause().getMessage());
           System.out.println(result);
-          serviceStatusFuture.complete(Status.UNKNOWN);
+          serviceStatusFuture.complete(Status.FAIL);
         }
       });
 
