@@ -3,14 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <title>Welcome to KRY</title>
+    <link rel="stylesheet" href="static/main.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
 </head>
 <body>
-KRY status poller
-<ul id="service-list">
-</ul>
-<input type="text" id="url-name">
-<button id="post-service">Save</button>
+    <h4>KRY status poller</h4>
+    <form>
+        <label for="service-name">Name</label>
+        <input type="text" id="service-name" placeholder="Google">
+        <label for="service-url">Url</label>
+        <input type="text" id="service-url" placeholder="https://www.google.de">
+        <button id="post-service">Add</button>
+        <span id="error"></span>
+    </form>
 
+    <ul id="service-list">
+    </ul>
 </body>
 <script src="static/code.js">
 </script>
